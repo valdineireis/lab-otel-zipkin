@@ -1,0 +1,32 @@
+services:
+  service-a:
+    build:
+      context: ./service-a
+    ports:
+      - "8080:8080"
+    depends_on:
+      - service-b
+      - otel-collector
+
+  service-b:
+    build:
+      context: ./service-b
+    ports:
+      - "8081:8081"
+    depends_on:
+      - otel-collector
+    env_file:
+      - ./service-b/.env
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"

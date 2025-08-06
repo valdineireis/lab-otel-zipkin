@@ -9,12 +9,12 @@ lab-otel-zipkin/
 │   └── Dockerfile
 ├── service-b/
 │   ├── main.go
+│   ├── .env
 │   ├── handlers/
 │   ├── tracing/
 │   └── Dockerfile
 ├── docker-compose.yml
-├── README.md
-└── .env
+└── README.md
 ```
 
 <details>
@@ -70,22 +70,50 @@ Importante:
 
 ## Teste Local
 
-Renomeie o arquivo `.env.exemple` para `.env` e preencha a propriedade `WEATHERAPI_KEY` com a sua chave do serviço https://www.weatherapi.com/.
+Entre na pasta **service-b** e renomeie o arquivo `.env.exemple` para `.env` e preencha a propriedade `WEATHERAPI_KEY` com a sua chave do serviço https://www.weatherapi.com/.
 
 ### Suba os serviços
 
-```shell
-cd /home/user/projects/lab-otel-zipkin/service-b
-docker build -t service-b .
+Retorne para a raiz do projeto **lab-otel-zipkin**.
 
-docker builder prune
-```
-
+Rode o seguinte comando para compilar e subir os serviços:
 
 ```shell
 docker compose up --build
 ```
 
+Após todos os serviços estarem prontos, rode o seguinte comando no terminal, para que seja realizada uma requisição para o **servico-a**, onde o fluxo se inicia:
+
 ```shell
-curl -X POST -H "Content-Type: application/json" -d '{"cep": "29902555"}' http://localhost:8080/cep
+curl -X POST -H "Content-Type: application/json" -d '{"cep": "29330000"}' http://localhost:8080/cep
+```
+
+Uma resposta no formato JSON, exemplificada abaixo, deve ser retornada. Além dos traces serem enviados para o Zipkin (http://127.0.0.1:9411).
+
+```json
+{"city":"Itapemirim","temp_C":19.1,"temp_F":66.38,"temp_K":292.1}
+```
+
+### Derrubar os serviços
+
+```shell
+docker compose down
+```
+
+### Comandos auxiliares
+
+```shell
+# baixar as dependências do Go
+go mod tidy
+
+# limpar o cache do docker
+docker builder prune
+
+# compilar o service-a
+cd service-a
+docker build -t service-a .
+
+# compilar o service-b
+cd service-b
+docker build -t service-b .
 ```

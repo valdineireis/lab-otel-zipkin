@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"regexp"
+
+	"go.opentelemetry.io/otel"
 )
 
 type CepRequest struct {
@@ -13,6 +16,10 @@ type CepRequest struct {
 }
 
 func CepHandler(w http.ResponseWriter, r *http.Request) {
+	tracer := otel.Tracer("service-a")
+	ctx, span := tracer.Start(r.Context(), "CepHandler")
+	defer span.End()
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -39,7 +46,7 @@ func CepHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Forward to Service B
-	resp, err := forwardToServiceB(req.Cep)
+	resp, err := forwardToServiceB(ctx, req.Cep)
 	if err != nil {
 		http.Error(w, "Failed to process request", http.StatusInternalServerError)
 		return
@@ -64,16 +71,26 @@ func validateCep(cep string) bool {
 	return re.MatchString(cep)
 }
 
-func forwardToServiceB(cep string) (*http.Response, error) {
+func forwardToServiceB(ctx context.Context, cep string) (*http.Response, error) {
+	tracer := otel.Tracer("service-a")
+	ctx, span := tracer.Start(ctx, "forwardToServiceB")
+	defer span.End()
+
 	url := "http://service-b:8081/process"
 	payload := map[string]string{"cep": cep}
 	jsonPayload, _ := json.Marshal(payload)
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Não feche o resp.Body aqui, pois ele será lido no CepHandler
 	return resp, nil
 }

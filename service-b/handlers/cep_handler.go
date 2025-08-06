@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	"go.opentelemetry.io/otel"
 )
 
 func init() {
@@ -29,6 +31,10 @@ type Response struct {
 }
 
 func CepHandler(w http.ResponseWriter, r *http.Request) {
+	tracer := otel.Tracer("service-b")
+	ctx, span := tracer.Start(r.Context(), "CepHandler")
+	defer span.End()
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -54,14 +60,14 @@ func CepHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch location from ViaCEP
-	city, err := fetchLocation(req.Cep)
+	city, err := fetchLocation(ctx, req.Cep)
 	if err != nil {
 		http.Error(w, `{"message": "can not find zipcode"}`, http.StatusNotFound)
 		return
 	}
 
 	// Fetch temperature from WeatherAPI
-	tempC, err := fetchTemperature(city)
+	tempC, err := fetchTemperature(ctx, city)
 	if err != nil {
 		http.Error(w, "Failed to fetch temperature", http.StatusInternalServerError)
 		return
@@ -82,7 +88,11 @@ func CepHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func fetchLocation(cep string) (string, error) {
+func fetchLocation(ctx context.Context, cep string) (string, error) {
+	tracer := otel.Tracer("service-b")
+	_, span := tracer.Start(ctx, "fetchLocation")
+	defer span.End()
+
 	url := fmt.Sprintf("https://viacep.com.br/ws/%s/json/", cep)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -102,7 +112,11 @@ func fetchLocation(cep string) (string, error) {
 	return data["localidade"].(string), nil
 }
 
-func fetchTemperature(city string) (float64, error) {
+func fetchTemperature(ctx context.Context, city string) (float64, error) {
+	tracer := otel.Tracer("service-b")
+	_, span := tracer.Start(ctx, "fetchTemperature")
+	defer span.End()
+
 	apiKey := os.Getenv("WEATHERAPI_KEY") // Load the key from the environment
 	if apiKey == "" {
 		return 0, fmt.Errorf("WeatherAPI key not set")
